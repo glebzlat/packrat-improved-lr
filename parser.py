@@ -15,10 +15,10 @@ class Token:
 
     def __repr__(self):
         lineno, start, end = self.lineno, self.start, self.end
-        return f"Token({self.value}, {lineno=}, {start=}, {end=})"
+        return f"Token({self.value!r}, {lineno=}, {start=}, {end=})"
 
     def __str__(self):
-        return repr(self)
+        return repr(self.value)
 
 
 class Reader:
@@ -87,6 +87,26 @@ class Reader:
                 break
 
 
+class MemoEntry:
+    """A record in the memo table.
+
+    The primary purpose of this class is to provide a wrapper that is stored
+    by reference. This allows to change record's data without accessing
+    it in the memo table.
+    """
+
+    def __init__(self, result: Optional[list[Token] | Token], pos: int):
+        self.result = result
+        self.pos = pos
+
+    def __repr__(self):
+        result, pos = self.result, self.pos
+        return f"MemoEntry({result!r}, {pos=})"
+
+    def __str__(self):
+        return repr(self)
+
+
 def memoize(fn):
 
     @wraps(fn)
@@ -97,12 +117,58 @@ def memoize(fn):
         if memo is None:
             result = fn(self, *args)
             endpos = self._mark()
-            self._memos[key] = result, endpos
+            self._memos[key] = MemoEntry(result, endpos)
         else:
-            result, endpos = memo
-            self._reset(endpos)
+            result = memo.result
+            self._reset(memo.pos)
 
         return result
+
+    return wrapper
+
+
+def memoize_lr(fn):
+
+    this_context = fn.__name__
+
+    @wraps(fn)
+    def wrapper(self, *args):
+        pos = self._mark()
+        key = (fn, args, pos)
+        memo = self._memos.get(key)
+
+        if memo is None:
+            alts = self._grow_rules[this_context]
+
+            self._memos[key] = memo = MemoEntry(None, pos)
+
+            # First plant the seed
+            seed = alts[0]
+            result = seed()
+            if result is None:
+                return None
+            memo.result, memo.pos = result, self._pos
+
+            # Then grow the LR, repeatedly calling recursive alternatives
+            # until there is no improvement
+            while True:
+                self._pos = pos
+                for alt in alts[1:]:
+                    # Ordered choice
+                    result = alt()
+                    if result is not None:
+                        break
+                    self._pos = pos
+                if self._pos <= memo.pos:
+                    # No improvement
+                    self._pos = memo.pos
+                    return memo.result
+                memo.result = result
+                memo.pos = self._pos
+
+        else:
+            self._pos = memo.pos
+            return memo.result
 
     return wrapper
 
@@ -113,6 +179,13 @@ class Parser:
         self._reader = reader
         self._chars = []
         self._pos = 0
+
+        # "Detecting the left recursive rules and creating the grow rules
+        # can be performed before the parser is used"
+        self._grow_rules = {
+            "Expr": [self.Expr_Alt_3, self.Expr_Alt_1, self.Expr_Alt_2],
+            "Mul": [self.Mul_Alt_3, self.Mul_Alt_1, self.Mul_Alt_2]
+        }
 
     @memoize
     def _expectc(self, char: Optional[str] = None) -> Optional[Token]:
@@ -161,6 +234,7 @@ class Parser:
         value = char.value
         for beg, end in ranges:
             if value >= beg and value <= end:
+                self._pos += 1
                 return char
 
     def _get_char(self) -> Optional[Token]:
@@ -193,52 +267,82 @@ class Parser:
         self._reset(pos)
         return None
 
-    @memoize
+    @memoize_lr
     def Expr(self):
         pos = self._mark()
+        if (alt := self.Expr_Alt_1()) is not None:
+            return alt
+        self._reset(pos)
+        if (alt := self.Expr_Alt_2()) is not None:
+            return alt
+        self._reset(pos)
+        if (alt := self.Expr_Alt_3()) is not None:
+            return alt
+        self._reset(pos)
+        return None
+
+    def Expr_Alt_1(self):
         if (
             (expr := self.Expr()) is not None and
             (plus := self.PLUS()) is not None and
             (mul := self.Mul()) is not None
         ):
             return [expr, plus, mul]
-        self._reset(pos)
+        return None
+
+    def Expr_Alt_2(self):
         if (
             (expr := self.Expr()) is not None and
             (minus := self.MINUS()) is not None and
             (mul := self.Mul()) is not None
         ):
             return [expr, minus, mul]
-        self._reset(pos)
+        return None
+
+    def Expr_Alt_3(self):
         if (
             (mul := self.Mul()) is not None
         ):
             return mul
+        return None
+
+    @memoize_lr
+    def Mul(self):
+        pos = self._mark()
+        if (alt := self.Mul_Alt_1()) is not None:
+            return alt
+        self._reset(pos)
+        if (alt := self.Mul_Alt_2()) is not None:
+            return alt
+        self._reset(pos)
+        if (alt := self.Mul_Alt_3()) is not None:
+            return alt
         self._reset(pos)
         return None
 
-    @memoize
-    def Mul(self):
-        pos = self._mark()
+    def Mul_Alt_1(self):
         if (
             (mul := self.Mul()) is not None and
             (mul_1 := self.MUL()) is not None and
             (term := self.Term()) is not None
         ):
             return [mul, mul_1, term]
-        self._reset(pos)
+        return None
+
+    def Mul_Alt_2(self):
         if (
             (mul := self.Mul()) is not None and
             (div := self.DIV()) is not None and
             (term := self.Term()) is not None
         ):
             return [mul, div, term]
-        self._reset(pos)
+        return None
+
+    def Mul_Alt_3(self):
         if (
             (term := self.Term()) is not None
         ):
             return term
-        self._reset(pos)
         return None
 
     @memoize
@@ -267,7 +371,7 @@ class Parser:
     def MINUS(self):
         pos = self._mark()
         if (
-            (c := self._expectc('+')) is not None and
+            (c := self._expectc('-')) is not None and
             self.WS() is not None
         ):
             return c
@@ -278,7 +382,7 @@ class Parser:
     def MUL(self):
         pos = self._mark()
         if (
-            (c := self._expectc('+')) is not None and
+            (c := self._expectc('*')) is not None and
             self.WS() is not None
         ):
             return c
@@ -380,6 +484,6 @@ if __name__ == "__main__":
 
     result = parser.parse()
     if result is not None:
-        print(result)
+        print(repr(result))
 
     exit(result is None)  # 0 is success
