@@ -186,7 +186,9 @@ class Parser:
             "Expr": [self.Expr_Alt_3, self.Expr_Alt_1, self.Expr_Alt_2],
             "Mul": [self.Mul_Alt_3, self.Mul_Alt_1, self.Mul_Alt_2],
             "Primary": [self.Primary_Alt_3, self.Primary_Alt_1,
-                        self.Primary_Alt_2]
+                        self.Primary_Alt_2],
+            "L": [self.L_Alt_2, self.L_Alt_1],
+            "P": [self.P_Alt_2, self.P_Alt_1]
         }
 
     @memoize
@@ -360,6 +362,11 @@ class Parser:
         ):
             return primary
         self._reset(pos)
+        if (
+            (mutual := self.Mutual()) is not None
+        ):
+            return mutual
+        self._reset(pos)
         return None
 
     @memoize
@@ -435,6 +442,69 @@ class Parser:
         ):
             return ["field_access", primary, id]
         self._reset(pos)
+        return None
+
+    @memoize
+    def Mutual(self):
+        pos = self._mark()
+        if (
+            (l := self.L()) is not None
+        ):
+            return l
+        self._reset(pos)
+        return None
+
+    @memoize_lr
+    def L(self):
+        pos = self._mark()
+        if (alt := self.L_Alt_1()) is not None:
+            return alt
+        self._reset(pos)
+        if (alt := self.L_Alt_2()) is not None:
+            return alt
+        self._reset(pos)
+        return None
+
+    def L_Alt_1(self):
+        if (
+            (p := self.P()) is not None and
+            self._expectc('.') is not None and
+            (id := self.Id()) is not None
+        ):
+            return [p, id]
+        return None
+
+    def L_Alt_2(self):
+        if (
+            (_1 := self._expectc('$')) is not None
+        ):
+            return _1
+        return None
+
+    @memoize_lr
+    def P(self):
+        pos = self._mark()
+        if (alt := self.P_Alt_1()) is not None:
+            return alt
+        self._reset(pos)
+        if (alt := self.P_Alt_2()) is not None:
+            return alt
+        self._reset(pos)
+        return None
+
+    def P_Alt_1(self):
+        if (
+            (p := self.P()) is not None and
+            (int := self.Int()) is not None
+        ):
+            return [p, int]
+        return None
+
+    def P_Alt_2(self):
+        if (
+            (l := self.L()) is not None
+        ):
+            return l
         return None
 
     @memoize

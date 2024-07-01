@@ -4,12 +4,17 @@ Grammar <- Expr EOF
 # Direct left recursion
 Expr <- Expr PLUS Mul / Expr MINUS Mul / Mul
 Mul  <- Mul MUL Term / Mul DIV Term / LBRACE Expr RBRACE / Term
-Term <- Int / Primary
+Term <- Int / Primary / Mutual
 
 # Indirect left recursion
 Primary <- MethodInvocation / FieldAccess / Id
 MethodInvocation <- Primary '.' Id CALL / Id CALL
 FieldAccess <- Primary '.' Id
+
+# Mutual left recursion
+Mutual <- L WS
+L <- P '.' Id / '$'
+P <- P Int / L
 
 Int <- [0-9] WS
 Id  <- [a-z] WS
