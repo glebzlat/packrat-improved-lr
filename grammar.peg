@@ -1,9 +1,18 @@
 @entry
 Grammar <- Expr EOF
 
+# Direct left recursion
 Expr <- Expr PLUS Mul / Expr MINUS Mul / Mul
 Mul  <- Mul MUL Term / Mul DIV Term / LBRACE Expr RBRACE / Term
-Term <- [0-9] WS
+Term <- Int / Primary
+
+# Indirect left recursion
+Primary <- MethodInvocation / FieldAccess / Id
+MethodInvocation <- Primary '.' Id CALL / Id CALL
+FieldAccess <- Primary '.' Id
+
+Int <- [0-9] WS
+Id  <- [a-z] WS
 
 PLUS <- '+' WS
 MINUS <- '-' WS
@@ -11,6 +20,7 @@ MUL <- '*' WS
 DIV <- '/' WS
 LBRACE <- '(' WS
 RBRACE <- ')' WS
+CALL <- '()' WS
 
 WS <- Spacing*
 Spacing <- ' ' / '\r' / '\n' / '\t'

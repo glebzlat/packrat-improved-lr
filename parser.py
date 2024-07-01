@@ -184,7 +184,9 @@ class Parser:
         # can be performed before the parser is used"
         self._grow_rules = {
             "Expr": [self.Expr_Alt_3, self.Expr_Alt_1, self.Expr_Alt_2],
-            "Mul": [self.Mul_Alt_3, self.Mul_Alt_1, self.Mul_Alt_2]
+            "Mul": [self.Mul_Alt_3, self.Mul_Alt_1, self.Mul_Alt_2],
+            "Primary": [self.Primary_Alt_3, self.Primary_Alt_1,
+                        self.Primary_Alt_2]
         }
 
     @memoize
@@ -200,7 +202,7 @@ class Parser:
         pos = self._mark()
         for c in string:
             nextch = self._peek_char()
-            if c != nextch.value:
+            if nextch is None or c != nextch.value:
                 self._reset(pos)
                 return None
             self._pos += 1
@@ -349,7 +351,97 @@ class Parser:
     def Term(self):
         pos = self._mark()
         if (
+            (int := self.Int()) is not None
+        ):
+            return int
+        self._reset(pos)
+        if (
+            (primary := self.Primary()) is not None
+        ):
+            return primary
+        self._reset(pos)
+        return None
+
+    @memoize
+    def Int(self):
+        pos = self._mark()
+        if (
             (_1 := self._ranges(('0', '9'))) is not None and
+            self.WS() is not None
+        ):
+            return _1
+        self._reset(pos)
+        return None
+
+    @memoize_lr
+    def Primary(self):
+        pos = self._mark()
+        if (alt := self.Primary_Alt_1()) is not None:
+            return alt
+        self._reset(pos)
+        if (alt := self.Primary_Alt_2()) is not None:
+            return alt
+        self._reset(pos)
+        if (alt := self.Primary_Alt_3()) is not None:
+            return alt
+        self._reset(pos)
+        return None
+
+    def Primary_Alt_1(self):
+        if (
+            (methodinvocation := self.MethodInvocation()) is not None
+        ):
+            return methodinvocation
+        return None
+
+    def Primary_Alt_2(self):
+        if (
+            (fieldaccess := self.FieldAccess()) is not None
+        ):
+            return fieldaccess
+        return None
+
+    def Primary_Alt_3(self):
+        if (
+            (id := self.Id()) is not None
+        ):
+            return id
+        return None
+
+    def MethodInvocation(self):
+        pos = self._mark()
+        if (
+            (primary := self.Primary()) is not None and
+            self._expectc('.') is not None and
+            (id := self.Id()) is not None and
+            self.CALL() is not None
+        ):
+            return ["method_invocation", primary, id]
+        self._reset(pos)
+        if (
+            (id := self.Id()) is not None and
+            self.CALL() is not None
+        ):
+            return ["function_invocation", id]
+        self._reset(pos)
+        return None
+
+    def FieldAccess(self):
+        pos = self._mark()
+        if (
+            (primary := self.Primary()) is not None and
+            self._expectc('.') is not None and
+            (id := self.Id()) is not None
+        ):
+            return ["field_access", primary, id]
+        self._reset(pos)
+        return None
+
+    @memoize
+    def Id(self):
+        pos = self._mark()
+        if (
+            (_1 := self._ranges(('a', 'z'))) is not None and
             self.WS() is not None
         ):
             return _1
@@ -416,6 +508,17 @@ class Parser:
         pos = self._mark()
         if (
             (c := self._expectc(')')) is not None and
+            self.WS() is not None
+        ):
+            return c
+        self._reset(pos)
+        return None
+
+    @memoize
+    def CALL(self):
+        pos = self._mark()
+        if (
+            (c := self._expects("()")) is not None and
             self.WS() is not None
         ):
             return c
