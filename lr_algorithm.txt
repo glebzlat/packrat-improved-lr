@@ -24,8 +24,8 @@ ApplyRule(R, P)
         e.ans <- Eval(R.body)
         e.pos <- Pos
         if e is Head then
+            # Grow LR
             if e.ans is LRFail then
-                # Grow LR
                 e.ans <- Fail
             return ApplyGrowRule(e, P)
         return e.ans
@@ -37,7 +37,7 @@ ApplyRule(R, P)
             # New head
             m becomes Head(m.ans, m.pos, {})
             m.ans.heads <- {m}
-        AddChain(thisContext, m.ans, heads)
+        AddChain(thisContext, m.ans.heads)
     return m.ans
 
 ApplyGrowRule(M, P)
