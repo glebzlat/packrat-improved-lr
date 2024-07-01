@@ -1,0 +1,18 @@
+@entry
+Grammar <- Expr EOF
+
+Expr <- Expr PLUS Mul / Expr MINUS Mul / Mul
+Mul  <- Mul MUL Term / Mul DIV Term / LBRACE Expr RBRACE / Term
+Term <- [0-9] WS
+
+PLUS <- '+' WS
+MINUS <- '-' WS
+MUL <- '*' WS
+DIV <- '/' WS
+LBRACE <- '(' WS
+RBRACE <- ')' WS
+
+WS <- Spacing*
+Spacing <- ' ' / '\r' / '\n' / '\t'
+
+EOF <- !.
