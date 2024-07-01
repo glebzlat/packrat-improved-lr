@@ -180,7 +180,188 @@ class Parser:
         self._pos = pos
 
     def parse(self):
-        ...
+        return self.Grammar()
+
+    @memoize
+    def Grammar(self):
+        pos = self._mark()
+        if (
+            (expr := self.Expr()) is not None and
+            self.EOF() is not None
+        ):
+            return expr
+        self._reset(pos)
+        return None
+
+    @memoize
+    def Expr(self):
+        pos = self._mark()
+        if (
+            (expr := self.Expr()) is not None and
+            (plus := self.PLUS()) is not None and
+            (mul := self.Mul()) is not None
+        ):
+            return [expr, plus, mul]
+        self._reset(pos)
+        if (
+            (expr := self.Expr()) is not None and
+            (minus := self.MINUS()) is not None and
+            (mul := self.Mul()) is not None
+        ):
+            return [expr, minus, mul]
+        self._reset(pos)
+        if (
+            (mul := self.Mul()) is not None
+        ):
+            return mul
+        self._reset(pos)
+        return None
+
+    @memoize
+    def Mul(self):
+        pos = self._mark()
+        if (
+            (mul := self.Mul()) is not None and
+            (mul_1 := self.MUL()) is not None and
+            (term := self.Term()) is not None
+        ):
+            return [mul, mul_1, term]
+        self._reset(pos)
+        if (
+            (mul := self.Mul()) is not None and
+            (div := self.DIV()) is not None and
+            (term := self.Term()) is not None
+        ):
+            return [mul, div, term]
+        self._reset(pos)
+        if (
+            (term := self.Term()) is not None
+        ):
+            return term
+        self._reset(pos)
+        return None
+
+    @memoize
+    def Term(self):
+        pos = self._mark()
+        if (
+            (_1 := self._ranges(('0', '9'))) is not None and
+            self.WS() is not None
+        ):
+            return _1
+        self._reset(pos)
+        return None
+
+    @memoize
+    def PLUS(self):
+        pos = self._mark()
+        if (
+            (c := self._expectc('+')) is not None and
+            self.WS() is not None
+        ):
+            return c
+        self._reset(pos)
+        return None
+
+    @memoize
+    def MINUS(self):
+        pos = self._mark()
+        if (
+            (c := self._expectc('+')) is not None and
+            self.WS() is not None
+        ):
+            return c
+        self._reset(pos)
+        return None
+
+    @memoize
+    def MUL(self):
+        pos = self._mark()
+        if (
+            (c := self._expectc('+')) is not None and
+            self.WS() is not None
+        ):
+            return c
+        self._reset(pos)
+        return None
+
+    @memoize
+    def DIV(self):
+        pos = self._mark()
+        if (
+            (c := self._expectc('/')) is not None and
+            self.WS() is not None
+        ):
+            return c
+        self._reset(pos)
+        return None
+
+    @memoize
+    def LBRACE(self):
+        pos = self._mark()
+        if (
+            (c := self._expectc('(')) is not None and
+            self.WS() is not None
+        ):
+            return c
+        self._reset(pos)
+        return None
+
+    @memoize
+    def RBRACE(self):
+        pos = self._mark()
+        if (
+            (c := self._expectc(')')) is not None and
+            self.WS() is not None
+        ):
+            return c
+        self._reset(pos)
+        return None
+
+    @memoize
+    def WS(self):
+        pos = self._mark()
+        if (
+            (_1 := self._loop(False, self.Spacing)) is not None
+        ):
+            return _1
+        self._reset(pos)
+        return None
+
+    @memoize
+    def Spacing(self):
+        pos = self._mark()
+        if (
+            (_1 := self._expectc(' ')) is not None
+        ):
+            return _1
+        self._reset(pos)
+        if (
+            (_1 := self._expectc('\r')) is not None
+        ):
+            return _1
+        self._reset(pos)
+        if (
+            (_1 := self._expectc('\n')) is not None
+        ):
+            return _1
+        self._reset(pos)
+        if (
+            (_1 := self._expectc('\t')) is not None
+        ):
+            return _1
+        self._reset(pos)
+        return None
+
+    @memoize
+    def EOF(self):
+        pos = self._mark()
+        if (
+            self._lookahead(False, self._expectc) is not None
+        ):
+            return []
+        self._reset(pos)
+        return None
 
 
 if __name__ == "__main__":
