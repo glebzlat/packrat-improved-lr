@@ -22,11 +22,7 @@ class Token:
 
 
 class Reader:
-    """
-    Reads the file and produces a stream of characters.
-
-    Reader supports strings and UTF-8 encoded streams only.
-    """
+    """Reads the file and produces a stream of characters."""
 
     def __init__(self, stream: str | io.TextIOBase, bufsize=4096):
         self.buffer = ""
@@ -193,6 +189,7 @@ class Parser:
 
     @memoize
     def _expectc(self, char: Optional[str] = None) -> Optional[Token]:
+        """Expects a single character in the stream"""
         if c := self._peek_char():
             if char is None or c.value == char:
                 self._pos += 1
@@ -201,6 +198,7 @@ class Parser:
 
     @memoize
     def _expects(self, string: str) -> Optional[Token]:
+        """Expects a sequence of characters in the stream"""
         pos = self._mark()
         for c in string:
             nextch = self._peek_char()
@@ -213,6 +211,11 @@ class Parser:
         return Token(string, lineno, start, end)
 
     def _lookahead(self, positive, fn, *args) -> Optional[list]:
+        """Expects an expression defined by `fn`
+
+        Succeeds, if `fn` succeeds and `positive` is True, or if `fn` fails
+        and `positive` is False. Does not consume input.
+        """
         pos = self._mark()
         ok = fn(*args) is not None
         self._reset(pos)
@@ -221,6 +224,12 @@ class Parser:
         return None
 
     def _loop(self, nonempty, fn, *args) -> Optional[list[Token]]:
+        """Repeatedly tries an expression defined by `fn`
+
+        Halts if `fn` fails or no further progress is made. If `nonempty` is
+        True, works as One or More quantifier (`+`), requiring `fn` succeed
+        at least once. Otherwise, succeeds even if `fn` did not succeed at all.
+        """
         pos = lastpos = self._mark()
         tokens = []
         while (token := fn(*args)) is not None and self._mark() > lastpos:
@@ -231,7 +240,14 @@ class Parser:
         self._reset(pos)
         return None
 
-    def _ranges(self, *ranges) -> Optional[Token]:
+    def _ranges(self, *ranges: tuple[str, str]) -> Optional[Token]:
+        """Expects the character to be in given ranges
+
+        Ranges are defined by tuples of single-character strings, where
+        the first element is less than or equal to the second:
+        `tup[0] <= tup[1]`. Succeeds, if `tup[0] <= character <= tu[1]` for
+        any tuple.
+        """
         char = self._peek_char()
         if char is None:
             return None
@@ -242,19 +258,23 @@ class Parser:
                 return char
 
     def _get_char(self) -> Optional[Token]:
+        """Return the character and advance pointer to the next character"""
         char = self._peek_char()
         self._pos += 1
         return char
 
     def _peek_char(self) -> Optional[Token]:
+        """Return the character and without moving the pointer"""
         if self._pos == len(self._chars):
             self._chars.append(next(self._reader, None))
         return self._chars[self._pos]
 
     def _mark(self) -> int:
+        """Get the pointer"""
         return self._pos
 
     def _reset(self, pos: int):
+        """Reset the pointer to position"""
         self._pos = pos
 
     def parse(self):
@@ -448,9 +468,9 @@ class Parser:
     def Mutual(self):
         pos = self._mark()
         if (
-            (l := self.L()) is not None
+            (ll := self.L()) is not None
         ):
-            return l
+            return ll
         self._reset(pos)
         return None
 
@@ -502,9 +522,9 @@ class Parser:
 
     def P_Alt_2(self):
         if (
-            (l := self.L()) is not None
+            (ll := self.L()) is not None
         ):
-            return l
+            return ll
         return None
 
     @memoize
